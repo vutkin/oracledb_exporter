@@ -199,6 +199,9 @@ jobs:
 
   deploy:
     name: deploy-[${{ matrix.name }}]
+    permissions:
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 1
@@ -238,9 +241,11 @@ jobs:
         run: make ${{ matrix.name }}-image
 
       - name: Log in to registry
+        if: ${{ !env.FORKED }}
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u $ --password-stdin
 
       - name: Push image
+        if: ${{ !env.FORKED }}
         id: docker-meta
         env:
           VERSION: "${{ needs.release.outputs.version }}"
@@ -251,10 +256,12 @@ jobs:
           echo "image-version=${VERSION}${TAG_SUFFIX}" >> $GITHUB_OUTPUT
 
       - name: Format current time
+        if: ${{ !env.FORKED }}
         id: time_now
         run: echo "time_now_formatted=$(date +'%Y-%m-%d %H:%M:%S')" >> "$GITHUB_OUTPUT"
 
       - name: Find releases comment
+        if: ${{ !env.FORKED }}
         uses: peter-evans/find-comment@v2
         id: find_comment
         with:
@@ -264,7 +271,7 @@ jobs:
 
       - name: Create releases comment
         uses: peter-evans/create-or-update-comment@v2
-        if: ${{ steps.find_comment.outputs.comment-id == '' }}
+        if: ${{ steps.find_comment.outputs.comment-id == '' && !env.FORKED }}
         with:
           comment-id: ${{ steps.find_comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -278,7 +285,7 @@ jobs:
 
       - name: Append releases comment
         uses: peter-evans/create-or-update-comment@v2
-        if: ${{ steps.find_comment.outputs.comment-id != '' }}
+        if: ${{ steps.find_comment.outputs.comment-id != '' && !env.FORKED }}
         with:
           comment-id: ${{ steps.find_comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -287,16 +294,16 @@ jobs:
             | ${{ steps.time_now.outputs.time_now_formatted }} | **${{ steps.docker-meta.outputs.image-version }}** |
 
       - name: Setup cosign
-        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' }}
+        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' && !env.FORKED }}
         uses: sigstore/cosign-installer@main
 
       - name: Write signing key to disk (only needed for `cosign sign --key`)
-        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' }}
+        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' && !env.FORKED }}
         continue-on-error: true
         run: echo "${{ secrets.SIGNING_SECRET }}" > cosign.key
 
       - name: Sign the published Docker image
-        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' }}
+        if: ${{ needs.config.outputs.deploy-sign-docker-image == 'true' && !env.FORKED }}
         continue-on-error: true
         env:
           COSIGN_PASSWORD: ""
@@ -304,6 +311,7 @@ jobs:
         run: make sign-${{ matrix.name }}-image
 
       - name: Container scan
+        if: ${{ !env.FORKED }}
         uses: aquasecurity/trivy-action@0.8.0
         env:
           image-ref: "${{ steps.docker-meta.outputs.image-id }}:${{ steps.docker-meta.outputs.image-version }}"
@@ -316,6 +324,7 @@ jobs:
           output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
+        if: ${{ !env.FORKED }}
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: "trivy-results.sarif"
@@ -323,6 +332,10 @@ jobs:
 
   comments:
     runs-on: ubuntu-latest
+    if: ${{ !env.FORKED }}
+    permissions:
+      contents: write
+      pull-requests: write
     needs:
       - release
     steps:
