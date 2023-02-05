@@ -26,6 +26,9 @@ env:
   RELEASE: false
   FORKED: ${{ github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name }}
 
+permissions:
+  contents: write
+
 jobs:
   config:
     if: github.triggering_actor != 'dependabot[bot]'
@@ -149,8 +152,6 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     needs:
       - config
       - build
