@@ -36,6 +36,7 @@ jobs:
       deploy-sign-docker-image: ${{ fromJson(steps.config.outputs.config).deploy.sign-docker-image }}
       deploy-pre-release-matrix: ${{ steps.pre-release-matrix.outputs.matrix }}
       deploy-release-matrix: ${{ steps.release-matrix.outputs.matrix }}
+      is-forked: ${{ github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -191,12 +192,6 @@ jobs:
           prerelease: true
           generate_release_notes: true
 
-      - uses: actions/upload-artifact@v2
-        if: ${{ env.FORKED }}
-        with:
-          name: pr-${{ env.PULL_REQUEST_NUMBER }}
-          path: ./${{ github.event.repository.name }}.tar.gz
-
   deploy:
     name: deploy-[${{ matrix.name }}]
     permissions:
@@ -311,7 +306,6 @@ jobs:
         run: make sign-${{ matrix.name }}-image
 
       - name: Container scan
-        if: ${{ !env.FORKED }}
         uses: aquasecurity/trivy-action@0.8.0
         env:
           image-ref: "${{ steps.docker-meta.outputs.image-id }}:${{ steps.docker-meta.outputs.image-version }}"
@@ -324,7 +318,6 @@ jobs:
           output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        if: ${{ !env.FORKED }}
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: "trivy-results.sarif"
