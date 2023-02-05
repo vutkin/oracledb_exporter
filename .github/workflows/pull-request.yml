@@ -191,6 +191,12 @@ jobs:
           prerelease: true
           generate_release_notes: true
 
+      - uses: actions/upload-artifact@v2
+        if: ${{ env.FORKED }}
+        with:
+          name: pr-${{ env.PULL_REQUEST_NUMBER }}
+          path: ./${{ github.event.repository.name }}.tar.gz
+
   deploy:
     name: deploy-[${{ matrix.name }}]
     runs-on: ubuntu-latest
